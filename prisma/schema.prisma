@@ -28,6 +28,12 @@ model User {
   memberships GroupMember[]
   expenseSplits ExpenseSplit[]
   notifications Notifications[]
+
+  friendRequestsSent      FriendRequest[] @relation("FriendRequestSender")
+  friendRequestsReceived  FriendRequest[] @relation("FriendRequestReceiver")
+
+  friends1 Friendship[] @relation("Friend1")
+  friends2 Friendship[] @relation("Friend2")
 }
 
 model Group {
@@ -62,7 +68,7 @@ model Expense {
   groupId  Int?
   group   Group?    @relation(fields: [groupId], references: [id])
 
-  splitType SplitType
+  splitType SplitType?
 
   splits       ExpenseSplit[]
 
@@ -103,6 +109,44 @@ model Notifications {
   createdAt DateTime @default(now())
 
   user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Friend Request System
+model FriendRequest {
+  id         String   @id @default(cuid())
+
+  senderId   Int
+  receiverId Int
+
+  status     FriendRequestStatus @default(PENDING)
+
+  createdAt  DateTime @default(now())
+
+  sender      User @relation("FriendRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver    User @relation("FriendRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+}
+
+
+model Friendship {
+  id         String   @id @default(cuid())
+
+  user1Id    Int
+  user2Id    Int
+
+  createdAt  DateTime @default(now())
+
+  user1 User @relation("Friend1", fields: [user1Id], references: [id], onDelete: Cascade)
+  user2 User @relation("Friend2", fields: [user2Id], references: [id], onDelete: Cascade)
+
+  @@unique([user1Id, user2Id], name: "user1Id_user2Id")
+}
+
+enum FriendRequestStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
 }
 
 enum SplitType {

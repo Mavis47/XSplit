@@ -38,3 +38,44 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+// Get All Group
+export async function GET() {
+  try {
+    const groups = await prisma.group.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            fullname: true,
+          },
+        },
+        members: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                fullname: true,
+              },
+            },
+          },
+        },
+        expenses: true,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(groups);
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}
