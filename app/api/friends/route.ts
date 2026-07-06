@@ -1,40 +1,69 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
+  try {
+    const session = await auth();
 
-  const userId = Number(req.nextUrl.searchParams.get("userId"));
-
-  const friendships = await prisma.friendship.findMany({
-
-    where: {
-      OR: [
-        {
-          user1Id: userId,
-        },
-        {
-          user2Id: userId,
-        },
-      ],
-    },
-
-    include: {
-      user1: true,
-      user2: true,
-    },
-
-  });
-
-  const friends = friendships.map((friendship) => {
-
-    if (friendship.user1Id === userId) {
-      return friendship.user2;
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    return friendship.user1;
+    const userId = Number(session.user.id);
 
-  });
+    const friendships = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          {
+            user1Id: userId,
+          },
+          {
+            user2Id: userId,
+          },
+        ],
+      },
 
-  return NextResponse.json(friends);
+      include: {
+        user1: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+          },
+        },
+        user2: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
 
+    const friends = friendships.map((friendship) =>
+      friendship.user1Id === userId
+        ? friendship.user2
+        : friendship.user1
+    );
+
+    return NextResponse.json(friends);
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      {
+        message: "Internal Server Error",
+      },
+      {
+        status: 500,
+      }
+    );
+  }
 }

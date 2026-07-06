@@ -1,18 +1,45 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
   try {
-    const {description,amount,ownerId,paidById,groupId,splitType,splits} = await req.json();
+    const session = await auth();
 
-    if (!description || !amount || !ownerId || !paidById) {
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { message: "Missing required fields." },
-        { status: 400 }
+        {
+          message: "Unauthorized.",
+        },
+        {
+          status: 401,
+        }
       );
     }
 
-    // Check owner
+    const ownerId = Number(session.user.id);
+
+    const {
+      description,
+      amount,
+      paidById,
+      groupId,
+      splitType,
+      splits,
+    } = await req.json();
+
+    if (!description || !amount) {
+      return NextResponse.json(
+        {
+          message: "Description and amount are required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    // Logged in user
     const owner = await prisma.user.findUnique({
       where: {
         id: ownerId,
@@ -30,24 +57,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Check paidBy
-    const payer = await prisma.user.findUnique({
-      where: {
-        id: paidById,
-      },
-    });
-
-    if (!payer) {
-      return NextResponse.json(
-        {
-          message: "PaidBy user not found.",
-        },
-        {
-          status: 404,
-        }
-      );
-    }
-
     // -----------------------------
     // PERSONAL EXPENSE
     // -----------------------------
@@ -57,8 +66,13 @@ export async function POST(req: NextRequest) {
           description,
           amount,
           ownerId,
-          paidById,
+          paidById: ownerId,
           groupId: null,
+        },
+        include: {
+          owner: true,
+          paidBy: true,
+          splits: true,
         },
       });
 
@@ -76,6 +90,34 @@ export async function POST(req: NextRequest) {
     // -----------------------------
     // GROUP EXPENSE
     // -----------------------------
+
+    if (!paidById) {
+      return NextResponse.json(
+        {
+          message: "Paid By is required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const payer = await prisma.user.findUnique({
+      where: {
+        id: paidById,
+      },
+    });
+
+    if (!payer) {
+      return NextResponse.json(
+        {
+          message: "PaidBy user not found.",
+        },
+        {
+          status: 404,
+        }
+      );
+    }
 
     const group = await prisma.group.findUnique({
       where: {
@@ -125,7 +167,6 @@ export async function POST(req: NextRequest) {
           paidById,
           groupId,
           splitType,
-
           splits: {
             create: splits.map(
               (split: {
@@ -138,19 +179,17 @@ export async function POST(req: NextRequest) {
             ),
           },
         },
-
         include: {
           owner: true,
           paidBy: true,
           group: true,
-
           splits: {
             include: {
               user: {
                 select: {
                   id: true,
                   username: true,
-                  fullname: true,
+                  name: true,
                 },
               },
             },
@@ -158,7 +197,6 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      // Notify group members except payer
       const members = await tx.groupMember.findMany({
         where: {
           groupId,
@@ -171,7 +209,7 @@ export async function POST(req: NextRequest) {
         await tx.notifications.create({
           data: {
             userId: member.userId,
-            message: `${owner.fullname} added "${description}" to the group.`,
+            message: `${owner.name} added "${description}" to the group.`,
           },
         });
       }

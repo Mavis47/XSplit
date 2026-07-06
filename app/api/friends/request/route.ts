@@ -1,152 +1,149 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
-    try {
-        const { senderId, receiverId } = await req.json();
-
-        // Validation
-        if (!senderId || !receiverId) {
-            return NextResponse.json(
-                { message: "senderId and receiverId are required." },
-                { status: 400 }
-            );
-        }
-
-        // Can't send request to yourself
-        if (senderId === receiverId) {
-            return NextResponse.json(
-                { message: "You cannot send a friend request to yourself." },
-                { status: 400 }
-            );
-        }
-
-        // Receiver exists?
-        const receiver = await prisma.user.findUnique({
-            where: {
-                id: receiverId,
-            },
-        });
-
-        if (!receiver) {
-            return NextResponse.json(
-                { message: "Receiver not found." },
-                { status: 404 }
-            );
-        }
-
-        // Already friends?
-        const friendship = await prisma.friendship.findFirst({
-            where: {
-                OR: [
-                    {
-                        user1Id: senderId,
-                        user2Id: receiverId,
-                    },
-                    {
-                        user1Id: receiverId,
-                        user2Id: senderId,
-                    },
-                ],
-            },
-        });
-
-        if (friendship) {
-            return NextResponse.json(
-                { message: "You are already friends." },
-                { status: 400 }
-            );
-        }
-
-        // Existing request?
-        const existingRequest = await prisma.friendRequest.findFirst({
-            where: {
-                OR: [
-                    {
-                        senderId,
-                        receiverId,
-                    },
-                    {
-                        senderId: receiverId,
-                        receiverId: senderId,
-                    },
-                ],
-            },
-        });
-
-        if (existingRequest) {
-            return NextResponse.json(
-                { message: "Friend request already exists." },
-                { status: 400 }
-            );
-        }
-
-        // Create request
-        const result = await prisma.$transaction(async (tx) => {
-        const request = await tx.friendRequest.create({
-            data: {
-            senderId,
-            receiverId,
-            },
-            include: {
-            sender: {
-                select: {
-                id: true,
-                username: true,
-                fullname: true,
-                },
-            },
-            receiver: {
-                select: {
-                id: true,
-                username: true,
-                fullname: true,
-                },
-            },
-            },
-        });
-
-        await tx.notifications.create({
-            data: {
-            userId: receiverId,
-            message: `${request.sender.fullname} sent you a friend request.`,
-            },
-        });
-
-        return request;
-        });
-
-        return NextResponse.json(
-        {
-            message: "Friend request sent successfully.",
-            request: result,
-        },
-        { status: 201 }
-        );
-
-        
-    } catch (error) {
-        console.error(error);
-
-        return NextResponse.json(
-            {
-                message: "Internal Server Error",
-            },
-            { status: 500 }
-        );
-    }
-}
-
-export async function GET(req: NextRequest) {
   try {
-    const userId = Number(req.nextUrl.searchParams.get("userId"));
+    const session = await auth();
 
-    if (!userId) {
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { message: "userId is required." },
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const senderId = Number(session.user.id);
+
+    const { receiverId } = await req.json();
+
+    if (!receiverId) {
+      return NextResponse.json(
+        { message: "receiverId is required." },
         { status: 400 }
       );
     }
+
+    const receiverIdNum = Number(receiverId);
+
+    if (senderId === receiverIdNum) {
+      return NextResponse.json(
+        { message: "You cannot send request to yourself." },
+        { status: 400 }
+      );
+    }
+
+    // Receiver exists
+    const receiver = await prisma.user.findUnique({
+      where: { id: receiverIdNum },
+    });
+
+    if (!receiver) {
+      return NextResponse.json(
+        { message: "Receiver not found." },
+        { status: 404 }
+      );
+    }
+
+    // Already friends
+    const friendship = await prisma.friendship.findFirst({
+      where: {
+        OR: [
+          { user1Id: senderId, user2Id: receiverIdNum },
+          { user1Id: receiverIdNum, user2Id: senderId },
+        ],
+      },
+    });
+
+    if (friendship) {
+      return NextResponse.json(
+        { message: "Already friends." },
+        { status: 400 }
+      );
+    }
+
+    // Existing request
+    const existingRequest = await prisma.friendRequest.findFirst({
+      where: {
+        OR: [
+          { senderId, receiverId: receiverIdNum },
+          { senderId: receiverIdNum, receiverId: senderId },
+        ],
+      },
+    });
+
+    if (existingRequest) {
+      return NextResponse.json(
+        { message: "Request already exists." },
+        { status: 400 }
+      );
+    }
+
+    // Create request
+    const request = await prisma.$transaction(async (tx) => {
+      const created = await tx.friendRequest.create({
+        data: {
+          senderId,
+          receiverId: receiverIdNum,
+        },
+        include: {
+          sender: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+            },
+          },
+          receiver: {
+            select: {
+              id: true,
+              username: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      await tx.notifications.create({
+        data: {
+          userId: receiverIdNum,
+          message: `${created.sender.name} sent you a friend request.`,
+        },
+      });
+
+      return created;
+    });
+
+    return NextResponse.json(
+      {
+        message: "Friend request sent successfully.",
+        request,
+      },
+      { status: 201 }
+    );
+
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET() {
+  try {
+    const session = await auth();
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const userId = Number(session.user.id);
 
     const requests = await prisma.friendRequest.findMany({
       where: {
@@ -158,7 +155,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             username: true,
-            fullname: true,
+            name: true,
             email: true,
           },
         },
@@ -180,24 +177,81 @@ export async function GET(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  try {
+    const session = await auth();
 
-  const userId = Number(req.nextUrl.searchParams.get("userId"));
-  const friendId = Number(req.nextUrl.searchParams.get("friendId"));
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized." },
+        { status: 401 }
+      );
+    }
 
-  const user1Id = Math.min(userId, friendId);
-  const user2Id = Math.max(userId, friendId);
+    const userId = Number(session.user.id);
+    const friendId = Number(req.nextUrl.searchParams.get("friendId"));
 
-  await prisma.friendship.delete({
-    where: {
-      user1Id_user2Id: {
-        user1Id,
-        user2Id,
+    if (!friendId) {
+      return NextResponse.json(
+        { message: "friendId is required." },
+        { status: 400 }
+      );
+    }
+
+    const user1Id = Math.min(userId, friendId);
+    const user2Id = Math.max(userId, friendId);
+
+    const friendship = await prisma.friendship.findUnique({
+      where: {
+        user1Id_user2Id: {
+          user1Id,
+          user2Id,
+        },
       },
-    },
-  });
+    });
 
-  return NextResponse.json({
-    message: "Friend removed successfully.",
-  });
+    if (!friendship) {
+      return NextResponse.json(
+        { message: "Friendship not found." },
+        { status: 404 }
+      );
+    }
 
+    await prisma.$transaction(async (tx) => {
+      await tx.friendship.delete({
+        where: {
+          user1Id_user2Id: {
+            user1Id,
+            user2Id,
+          },
+        },
+      });
+
+      await tx.friendRequest.deleteMany({
+        where: {
+          OR: [
+            {
+              senderId: userId,
+              receiverId: friendId,
+            },
+            {
+              senderId: friendId,
+              receiverId: userId,
+            },
+          ],
+        },
+      });
+    });
+
+    return NextResponse.json({
+      message: "Friend removed successfully.",
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
 }

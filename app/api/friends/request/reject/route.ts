@@ -1,10 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
 export async function PUT(req: NextRequest) {
   try {
+    const session = await auth();
 
-    const { requestId, userId } = await req.json();
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const userId = Number(session.user.id);
+
+    const { requestId } = await req.json();
+
+    if (!requestId) {
+      return NextResponse.json(
+        { message: "requestId is required." },
+        { status: 400 }
+      );
+    }
 
     const request = await prisma.friendRequest.findUnique({
       where: {
@@ -14,15 +32,23 @@ export async function PUT(req: NextRequest) {
 
     if (!request) {
       return NextResponse.json(
-        { message: "Request not found." },
+        { message: "Friend request not found." },
         { status: 404 }
       );
     }
 
+    // Only the receiver can reject the request
     if (request.receiverId !== userId) {
       return NextResponse.json(
         { message: "Unauthorized." },
         { status: 403 }
+      );
+    }
+
+    if (request.status !== "PENDING") {
+      return NextResponse.json(
+        { message: "Request has already been processed." },
+        { status: 400 }
       );
     }
 
@@ -40,13 +66,11 @@ export async function PUT(req: NextRequest) {
     });
 
   } catch (error) {
-
     console.error(error);
 
     return NextResponse.json(
       { message: "Internal Server Error" },
       { status: 500 }
     );
-
   }
 }

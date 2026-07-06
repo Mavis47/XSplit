@@ -1,9 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
 export async function PUT(req: NextRequest) {
   try {
-    const { requestId, userId } = await req.json();
+    const session = await auth();
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const userId = Number(session.user.id);
+
+    const { requestId } = await req.json();
+
+    if (!requestId) {
+      return NextResponse.json(
+        { message: "requestId is required." },
+        { status: 400 }
+      );
+    }
 
     const request = await prisma.friendRequest.findUnique({
       where: {
@@ -22,6 +41,7 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    // Ensure the logged-in user is the receiver
     if (request.receiverId !== userId) {
       return NextResponse.json(
         { message: "Unauthorized." },
@@ -59,7 +79,7 @@ export async function PUT(req: NextRequest) {
       await tx.notifications.create({
         data: {
           userId: request.senderId,
-          message: `${request.receiver.fullname} accepted your friend request.`,
+          message: `${request.receiver.name} accepted your friend request.`,
         },
       });
     });

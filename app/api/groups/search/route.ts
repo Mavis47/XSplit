@@ -1,23 +1,32 @@
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
 
 
 export async function GET(req: NextRequest) {
   try {
-    const groupName = req.nextUrl.searchParams.get("name");
+    const session = await auth();
 
-    if (!groupName) {
+    if (!session?.user) {
       return NextResponse.json(
-        { message: "Group name is required" },
-        { status: 400 }
+        { message: "Unauthorized" },
+        { status: 401 }
       );
     }
 
-    const group = await prisma.group.findMany({
+    const userId = Number(session.user.id);
+    const groupName = req.nextUrl.searchParams.get("name") ?? "";
+
+    const groups = await prisma.group.findMany({
       where: {
+        members: {
+          some: {
+            userId,
+          },
+        },
         GroupName: {
-         contains: groupName,
-         mode: "insensitive",
+          contains: groupName,
+          mode: "insensitive",
         },
       },
       include: {
@@ -25,7 +34,7 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             username: true,
-            fullname: true,
+            name: true,
           },
         },
         members: {
@@ -34,22 +43,19 @@ export async function GET(req: NextRequest) {
               select: {
                 id: true,
                 username: true,
-                fullname: true,
+                name: true,
               },
             },
           },
         },
+        expenses: true,
+      },
+      orderBy: {
+        createdAt: "desc",
       },
     });
 
-    if (!group) {
-      return NextResponse.json(
-        { message: "Group not found" },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(group);
+    return NextResponse.json(groups);
   } catch (error) {
     console.error(error);
 

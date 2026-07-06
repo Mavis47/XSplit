@@ -1,40 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
 export async function GET(req: NextRequest) {
   try {
-    const userId = Number(req.nextUrl.searchParams.get("userId"));
+    const session = await auth();
 
-    if (!userId) {
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { message: "userId is required." },
-        { status: 400 }
+        { message: "Unauthorized" },
+        { status: 401 }
       );
     }
+
+    const userId = Number(session.user.id);
 
     const expenses = await prisma.expense.findMany({
       where: {
         ownerId: userId,
         groupId: null,
       },
-
       include: {
         owner: {
           select: {
             id: true,
-            fullname: true,
+            name: true,
             username: true,
           },
         },
         paidBy: {
           select: {
             id: true,
-            fullname: true,
+            name: true,
             username: true,
           },
         },
+        splits: true,
       },
-
       orderBy: {
         createdAt: "desc",
       },

@@ -1,69 +1,94 @@
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
-  try {
-    const { groupName, userId } = await req.json();
+  const session = await auth();
 
-    if (!groupName || !userId) {
-      return NextResponse.json(
-        { message: "groupName and userId are required" },
-        { status: 400 }
-      );
-    }
-
-    const group = await prisma.group.create({
-      data: {
-        GroupName: groupName,
-        userId,
-
-        members: {
-          create: {
-            userId,
-            isAdmin: true,
-          },
-        },
-      },
-      include: {
-        members: true,
-      },
-    });
-
-    return NextResponse.json(group, { status: 201 });
-  } catch (error) {
-    console.error(error);
+  if (!session?.user) {
     return NextResponse.json(
-      { message: "Internal Server Error" },
-      { status: 500 }
+      { message: "Unauthorized" },
+      { status: 401 }
     );
   }
+
+  const { groupName } = await req.json();
+
+  const userId = Number(session.user.id);
+
+  const group = await prisma.group.create({
+    data: {
+      GroupName: groupName,
+      userId,
+      members: {
+        create: {
+          userId,
+          isAdmin: true,
+        },
+      },
+    },
+    include: {
+      members: true,
+    },
+  });
+
+  return NextResponse.json(group);
 }
 
 // Get All Group
 export async function GET() {
   try {
+    const session = await auth();
+
+    if (!session?.user) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const userId = Number(session.user.id);
+
     const groups = await prisma.group.findMany({
+      where: {
+        OR: [
+          {
+            userId,
+          },
+          {
+            members: {
+              some: {
+                userId,
+              },
+            },
+          },
+        ],
+      },
+
       include: {
         user: {
           select: {
             id: true,
             username: true,
-            fullname: true,
+            name: true,
           },
         },
+
         members: {
           include: {
             user: {
               select: {
                 id: true,
                 username: true,
-                fullname: true,
+                name: true,
               },
             },
           },
         },
+
         expenses: true,
       },
+
       orderBy: {
         createdAt: "desc",
       },

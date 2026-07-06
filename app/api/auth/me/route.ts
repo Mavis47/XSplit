@@ -1,34 +1,47 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/auth";
 import { prisma } from "@/app/lib/prisma";
-import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: NextRequest) {
-  const id = Number(req.nextUrl.searchParams.get("id"));
+export async function GET() {
+  try {
+    const session = await auth();
 
-  if (!id) {
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        id: Number(session.user.id),
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        image: true, 
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(user);
+
+  } catch (error) {
+    console.error(error);
+
     return NextResponse.json(
-      { message: "User id required" },
-      { status: 400 }
+      { message: "Internal Server Error" },
+      { status: 500 }
     );
   }
-
-  const user = await prisma.user.findUnique({
-    where: { id },
-    select: {
-      id: true,
-      username: true,
-      fullname: true,
-      email: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  });
-
-  if (!user) {
-    return NextResponse.json(
-      { message: "User not found" },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json(user);
 }

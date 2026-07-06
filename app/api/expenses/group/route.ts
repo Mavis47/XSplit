@@ -1,16 +1,19 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const userId = Number(req.nextUrl.searchParams.get("userId"));
+    const session = await auth();
 
-    if (!userId) {
+    if (!session?.user?.id) {
       return NextResponse.json(
-        { message: "userId is required." },
-        { status: 400 }
+        { message: "Unauthorized" },
+        { status: 401 }
       );
     }
+
+    const userId = Number(session.user.id);
 
     const expenses = await prisma.expense.findMany({
       where: {
@@ -21,7 +24,7 @@ export async function GET(req: NextRequest) {
         group: {
           members: {
             some: {
-              userId,
+              userId: userId,
             },
           },
         },
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
         owner: {
           select: {
             id: true,
-            fullname: true,
+            name: true,
             username: true,
           },
         },
@@ -39,7 +42,7 @@ export async function GET(req: NextRequest) {
         paidBy: {
           select: {
             id: true,
-            fullname: true,
+            name: true,
             username: true,
           },
         },
@@ -56,7 +59,7 @@ export async function GET(req: NextRequest) {
             user: {
               select: {
                 id: true,
-                fullname: true,
+                name: true,
                 username: true,
               },
             },
@@ -70,12 +73,17 @@ export async function GET(req: NextRequest) {
     });
 
     return NextResponse.json(expenses);
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+      console.error("GROUP EXPENSE ERROR:");
+  console.error(error);
+  console.error(error.message);
+  console.error(error.stack);
 
-    return NextResponse.json(
-      { message: "Internal Server Error" },
-      { status: 500 }
-    );
+  return NextResponse.json(
+    {
+      message: error.message,
+    },
+    { status: 500 }
+  );
   }
 }
