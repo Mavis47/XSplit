@@ -35,6 +35,10 @@ export default function ExpensesPage() {
   const [type, setType] = useState<"personal" | "group">("personal");
   const [loading, setLoading] = useState(false);
 
+  const [editingExpense, setEditingExpense] = useState<any>(null);
+
+  const [search, setSearch] = useState("");
+
   // ---------------- FETCH ----------------
   const getExpenses = async () => {
     try {
@@ -73,29 +77,6 @@ export default function ExpensesPage() {
     }));
   };
 
-  // ---------------- VALIDATION ----------------
-  const validateSplit = () => {
-    const amt = Number(amount);
-
-    if (splitType === "EXACT") {
-      const total = members.reduce((sum, m) => sum + m.value, 0);
-      if (total !== amt) {
-        toast.error("Exact split must equal total amount");
-        return false;
-      }
-    }
-
-    if (splitType === "PERCENTAGE") {
-      const total = members.reduce((sum, m) => sum + m.value, 0);
-      if (total !== 100) {
-        toast.error("Percentage must equal 100%");
-        return false;
-      }
-    }
-
-    return true;
-  };
-
   // ---------------- SUBMIT ----------------
   const handleAddExpense = async () => {
     try {
@@ -107,14 +88,6 @@ export default function ExpensesPage() {
       setLoading(true);
 
       const isGroupExpense = Boolean(groupId);
-
-      // const payload: any = {
-      //   description,
-      //   amount: Number(amount),
-      //   // ownerId: Number(paidBy),
-      //   paidById: Number(paidBy),
-      //   groupId: isGroupExpense ? Number(groupId) : null,
-      // };
 
       const payload: any = {
         description,
@@ -135,12 +108,7 @@ export default function ExpensesPage() {
         let splits: any[] = [];
 
         if (splitType === "EQUAL") {
-          const perPerson = Number(amount) / members.length;
-
-          splits = members.map((m) => ({
-            userId: m.id,
-            share: perPerson,
-          }));
+          splits = calculateEqualSplit(Number(amount));
         }
 
         if (splitType === "EXACT") {
@@ -190,24 +158,80 @@ export default function ExpensesPage() {
       );
 
     } catch (err) {
-      console.error(err);
       toast.error("Something went wrong");
     } finally {
       setLoading(false);
     }
   };
 
+  const updateExpense = async () => {
+    try {
+      const payload: any = {
+        description,
+        amount: Number(amount),
+      };
+
+      if (groupId) {
+        payload.groupId = Number(groupId);
+        payload.paidById = Number(paidBy);
+        payload.splitType = splitType;
+
+        let splits = [];
+
+        if (splitType === "EQUAL") {
+          splits = calculateEqualSplit(Number(amount));
+        } else if (splitType === "EXACT") {
+          splits = members.map((m) => ({
+            userId: m.id,
+            share: Number(m.value),
+          }));
+        } else {
+          splits = members.map((m) => ({
+            userId: m.id,
+            share: (Number(amount) * Number(m.value)) / 100,
+          }));
+        }
+
+        payload.splits = splits;
+      }
+
+      const res = await fetch(`/api/expenses/${editingExpense.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message);
+        return;
+      }
+
+      toast.success(data.message);
+
+      setExpenseModal(false);
+      setEditingExpense(null);
+
+      getExpenses();
+    } catch {
+      toast.error("Failed to update expense");
+    }
+  };
+
   const getMembers = async (groupId: number) => {
     try {
       const res = await fetch(`/api/groups/${groupId}`);
-      console.log("Members in group",res)
+      console.log("Members in group", res)
 
       if (!res.ok) throw new Error();
 
       const data = await res.json();
 
-      console.log("Members",data);
-      
+      console.log("Members", data);
+
       setMembers(
         data.map((user: any) => ({
           id: user.id,
@@ -233,6 +257,70 @@ export default function ExpensesPage() {
       toast.error("Failed to load groups");
     }
   };
+
+  const deleteExpense = async (expenseId: number) => {
+    try {
+      const res = await fetch(`/api/expenses/${expenseId}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        toast.error(data.message);
+        return;
+      }
+
+      toast.success(data.message);
+
+      getExpenses();
+    } catch (err) {
+      toast.error("Failed to delete expense");
+    }
+  };
+
+  const openEditModal = (expense: any) => {
+    setEditingExpense(expense);
+
+    setDescription(expense.description);
+
+    setAmount(expense.amount.toString());
+
+    setGroupId(expense.groupId?.toString() ?? "");
+
+    setPaidBy(expense.paidById.toString());
+
+    setSplitType(expense.splitType);
+
+    setMembers(
+      expense.splits.map((split: any) => ({
+        id: split.user.id,
+        name: split.user.name,
+        value: split.share,
+      }))
+    );
+
+    setExpenseModal(true);
+  };
+
+  useEffect(() => {
+    const timeout = setTimeout(async () => {
+      if (!search.trim()) {
+        getExpenses();
+        return;
+      }
+
+      const res = await fetch(
+        `/api/expenses/search?q=${encodeURIComponent(search)}`
+      );
+
+      const data = await res.json();
+
+      setExpenses(data);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [search]);
   // ---------------- UI ----------------
   return (
     <div className="space-y-6">
@@ -271,7 +359,7 @@ export default function ExpensesPage() {
       {/* SEARCH */}
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-500" />
-        <Input placeholder="Search expenses..." className="pl-10" />
+        <Input placeholder="Search expenses..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
       {/* EXPENSE LIST */}
@@ -305,10 +393,39 @@ export default function ExpensesPage() {
               Splits: {expense.splits.length}
             </p>
 
-            <div className="flex gap-3 mt-4">
-              <Button variant="outline">Edit</Button>
-              <Button variant="destructive">Delete</Button>
-            </div>
+            {expense.youWillGet > 0 && (
+              <p className="mt-2 text-green-600 font-semibold">
+                You will get ₹{expense.youWillGet}
+              </p>
+            )}
+
+            {expense.youWillPay > 0 && (
+              <p className="mt-2 text-red-600 font-semibold">
+                You will pay ₹{expense.youWillPay}
+              </p>
+            )}
+
+            {(expense.canEdit || expense.canDelete) && (
+              <div className="flex gap-3 mt-4">
+                {expense.canEdit && (
+                  <Button
+                    variant="outline"
+                    onClick={() => openEditModal(expense)}
+                  >
+                    Edit
+                  </Button>
+                )}
+
+                {expense.canDelete && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => deleteExpense(expense.id)}
+                  >
+                    Delete
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -318,7 +435,9 @@ export default function ExpensesPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center">
           <div className="bg-white w-150 p-6 rounded-xl space-y-4">
 
-            <h2 className="text-xl font-bold">Add Expense</h2>
+            <h2 className="text-xl font-bold">
+              {editingExpense ? "Edit Expense" : "Add Expense"}
+            </h2>
 
             <Input
               placeholder="Description"
@@ -424,12 +543,31 @@ export default function ExpensesPage() {
 
             {/* ACTIONS */}
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setExpenseModal(false)}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setExpenseModal(false);
+                  setEditingExpense(null);
+
+                  setDescription("");
+                  setAmount("");
+                  setGroupId("");
+                  setPaidBy("");
+                  setSplitType("EQUAL");
+                  setMembers([]);
+                }}
+              >
                 Cancel
               </Button>
 
-              <Button onClick={handleAddExpense}>
-                Add
+              <Button
+                onClick={
+                  editingExpense
+                    ? updateExpense
+                    : handleAddExpense
+                }
+              >
+                {editingExpense ? "Update Expense" : "Add Expense"}
               </Button>
             </div>
 

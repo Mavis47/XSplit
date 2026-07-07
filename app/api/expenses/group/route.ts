@@ -48,9 +48,13 @@ export async function GET() {
         },
 
         group: {
-          select: {
-            id: true,
-            GroupName: true,
+          include: {
+            members: {
+              select: {
+                userId: true,
+                isAdmin: true,
+              },
+            },
           },
         },
 
@@ -71,19 +75,49 @@ export async function GET() {
         createdAt: "desc",
       },
     });
+    const formattedExpenses = expenses.map((expense) => {
+      const mySplit = expense.splits.find(
+        (split) => split.userId === userId
+      );
 
-    return NextResponse.json(expenses);
+      const myShare = mySplit?.share ?? 0;
+
+      let youWillPay = 0;
+      let youWillGet = 0;
+
+      if (expense.paidById === userId) {
+        youWillGet = expense.amount - myShare;
+      } else {
+        youWillPay = myShare;
+      }
+
+      const isAdmin = expense.group?.members.some(
+        (member) =>
+          member.userId === userId &&
+          member.isAdmin
+      );
+
+      return {
+        ...expense,
+        youWillPay,
+        youWillGet,
+        canEdit: isAdmin,
+        canDelete: isAdmin,
+      };
+    });
+
+    return NextResponse.json(formattedExpenses);
   } catch (error: any) {
-      console.error("GROUP EXPENSE ERROR:");
-  console.error(error);
-  console.error(error.message);
-  console.error(error.stack);
+    console.error("GROUP EXPENSE ERROR:");
+    console.error(error);
+    console.error(error.message);
+    console.error(error.stack);
 
-  return NextResponse.json(
-    {
-      message: error.message,
-    },
-    { status: 500 }
-  );
+    return NextResponse.json(
+      {
+        message: error.message,
+      },
+      { status: 500 }
+    );
   }
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
+import { auth } from "@/auth";
 
 type Params = {
   params: Promise<{
@@ -12,12 +13,21 @@ type Params = {
 // --------------------
 export async function PUT(req: NextRequest, { params }: Params) {
   try {
-    const { id } = await params;
+    const session = await auth();
 
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const userId = Number(session.user.id);
+
+    const { id } = await params;
     const expenseId = Number(id);
 
     const {
-      userId,
       description,
       amount,
       paidById,
@@ -147,11 +157,19 @@ export async function PUT(req: NextRequest, { params }: Params) {
 
 export async function DELETE(req: NextRequest, { params }: Params) {
   try {
+    const session = await auth();
+
+    if (!session?.user?.id) {
+      return NextResponse.json(
+        { message: "Unauthorized." },
+        { status: 401 }
+      );
+    }
+
+    const userId = Number(session.user.id);
+
     const { id } = await params;
-
     const expenseId = Number(id);
-
-    const userId = Number(req.nextUrl.searchParams.get("userId"));
 
     const expense = await prisma.expense.findUnique({
       where: {

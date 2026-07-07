@@ -6,11 +6,15 @@ import Link from "next/link";
 import { Button } from "./ui/button";
 import { signOut } from "next-auth/react";
 import { useUser } from "@/app/context/UserContext";
+import { useEffect, useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 
 export default function AppHeader() {
   const { user, loading } = useUser();
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   const initial = user?.fullname?.charAt(0) || "?";
+  const [open, setOpen] = useState(false);
 
   const navItems = [
     { name: "Home", href: "/" },
@@ -19,6 +23,46 @@ export default function AppHeader() {
     { name: "Friends", href: "/friends" },
   ];
 
+  const getNotifications = async () => {
+    try {
+      const res = await fetch("/api/notifications");
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      console.log("Res in notifications", res);
+
+
+      setNotifications(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    getNotifications();
+  }, []);
+
+  const markAllAsRead = async () => {
+    try {
+      const res = await fetch("/api/notifications/read", {
+        method: "PATCH",
+      });
+
+      if (!res.ok) return;
+
+      setNotifications((prev) =>
+        prev.map((notification) => ({
+          ...notification,
+          isRead: true,
+        }))
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   if (loading) {
     return (
       <header className="flex items-center justify-between border-b bg-white px-6 py-4">
@@ -26,6 +70,9 @@ export default function AppHeader() {
       </header>
     );
   }
+  const unreadCount = notifications.filter(
+    (n) => !n.isRead
+  ).length;
 
   return (
     <header className="flex items-center justify-between border-b bg-white px-6 py-4">
@@ -68,9 +115,74 @@ export default function AppHeader() {
         </ul>
       </nav>
 
+
       {/* Right */}
       <div className="flex items-center gap-4">
-        <Bell className="cursor-pointer" />
+        <Popover
+          open={open}
+          onOpenChange={(value) => {
+            setOpen(value);
+
+            if (value) {
+              markAllAsRead();
+            }
+          }}
+        
+        >
+          <PopoverTrigger asChild>
+            <button className="relative">
+              <Bell className="h-6 w-6 cursor-pointer" />
+
+              {unreadCount > 0 && (
+                <span
+                  className="absolute -top-2 -right-2 flex h-5 min-w-5 items-center justify-center rounded-full  bg-red-500 px-1 
+                  text-[10px] font-bold  text-white"
+                >
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+          </PopoverTrigger>
+
+          <PopoverContent
+            align="end"
+            className="w-96 p-0"
+          >
+            <div className="border-b p-4">
+              <h2 className="text-lg font-bold">
+                Notifications
+              </h2>
+            </div>
+
+            <div className="max-h-112.5 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <p className="p-6 text-center text-gray-500">
+                  No notifications
+                </p>
+              ) : (
+                notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`border-b p-4 transition hover:bg-gray-50 ${!notification.isRead
+                      ? "bg-blue-50"
+                      : ""
+                      }`}
+                  >
+                    <p className="text-sm">
+                      {notification.message}
+                    </p>
+
+                    <p className="mt-1 text-xs text-gray-500">
+                      {new Date(
+                        notification.createdAt
+                      ).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
 
         <Button
           variant="destructive"
