@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { auth } from "@/auth";
+import { publishNotification } from "@/lib/kafka/notification";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -76,12 +77,21 @@ export async function PUT(req: NextRequest) {
         },
       });
 
-      await tx.notifications.create({
-        data: {
-          userId: request.senderId,
-          message: `${request.receiver.name} accepted your friend request.`,
-        },
-      });
+      if (process.env.USE_KAFKA === "true") {
+        await publishNotification({
+          type: "friend_request_accepted",
+          senderId: request.senderId,
+          receiverName: request.receiver.name,
+        });
+      } else {
+        await tx.notifications.create({
+          data: {
+            userId: request.senderId,
+            message: `${request.receiver.name} accepted your friend request.`,
+            isRead: false,
+          },
+        });
+      }
     });
 
     return NextResponse.json({

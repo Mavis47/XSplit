@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { auth } from "@/auth";
+import { publishNotification } from "@/lib/kafka/notification";
 
 export async function POST(req: NextRequest) {
   try {
@@ -104,12 +105,21 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      await tx.notifications.create({
-        data: {
-          userId: receiverIdNum,
-          message: `${created.sender.name} sent you a friend request.`,
-        },
-      });
+      if (process.env.USE_KAFKA === "true") {
+        await publishNotification({
+          type: "friend_request",
+          receiverId: receiverIdNum,
+          senderName: created.sender.name,
+        });
+      } else {
+        await tx.notifications.create({
+          data: {
+            userId: receiverIdNum,
+            message: `${created.sender.name} sent you a friend request.`,
+            isRead: false,
+          },
+        });
+      }
 
       return created;
     });

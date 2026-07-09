@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+
 
 export default function Groups() {
 
@@ -21,6 +24,16 @@ export default function Groups() {
   const [friends, setFriends] = useState<any[]>([]);
   const [selectedFriends, setSelectedFriends] = useState<number[]>([]);
 
+
+  const { status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
+
   const getGroups = async () => {
     try {
       const res = await fetch("/api/groups");
@@ -28,13 +41,15 @@ export default function Groups() {
       if (!res.ok) {
         throw new Error("Failed to fetch groups");
       }
+      if (res.status === 401) return;
 
       const data = await res.json();
-      console.log("data of all groups", data);
+
       setGroups(data);
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to load groups");
+      if (status === "authenticated") {
+        toast.error("Failed to load groups");
+      }
     }
   };
 
@@ -48,7 +63,9 @@ export default function Groups() {
 
       setFriends(data);
     } catch {
-      toast.error("Failed to load friends");
+      if (status === "authenticated") {
+        toast.error("Failed to load friends");
+      }
     }
   };
 
@@ -100,6 +117,7 @@ export default function Groups() {
   };
 
   useEffect(() => {
+    if (status !== "authenticated") return;
     getGroups();
   }, []);
 
@@ -218,17 +236,26 @@ export default function Groups() {
       const data = await res.json();
       setGroups(data);
     } catch (error) {
-      console.error(error);
-      toast.error("Failed to search groups");
+      if (status === "authenticated") {
+        toast.error("Failed to search groups");
+      }
     }
   };
 
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
+
+  if (status === "unauthenticated") {
+    return null;
+  }
+
   const availableFriends = friends.filter(
-  (friend) =>
-    !selectedGroup?.members.some(
-      (member: any) => member.userId === friend.id
-    )
-);
+    (friend) =>
+      !selectedGroup?.members.some(
+        (member: any) => member.userId === friend.id
+      )
+  );
 
   return (
     <div className="space-y-6">

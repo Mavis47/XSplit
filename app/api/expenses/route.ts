@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { auth } from "@/auth";
+import { publishNotification } from "@/lib/kafka/notification";
 
 export async function POST(req: NextRequest) {
   try {
@@ -203,15 +204,29 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      for (const member of members) {
-        if (member.userId === paidById) continue;
+      // Kafka Setup
+      
+      const recipients = members
+        .filter((member) => member.userId !== paidById)
+        .map((member) => member.userId);
 
-        await tx.notifications.create({
-          data: {
-            userId: member.userId,
-            message: `${owner.name} added "${description}" to the group.`,
-          },
+      if (process.env.USE_KAFKA === "true") {
+        await publishNotification({
+          type: "expense_created",
+          senderName: owner.name,
+          description,
+          recipients,
         });
+      } else {
+        for (const userId of recipients) {
+          await tx.notifications.create({
+            data: {
+              userId,
+              message: `${owner.name} added "${description}"`,
+              isRead: false,
+            },
+          });
+        }
       }
 
       return createdExpense;

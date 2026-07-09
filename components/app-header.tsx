@@ -1,6 +1,6 @@
 "use client";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Bell, LogOut } from "lucide-react";
 import Link from "next/link";
 import { Button } from "./ui/button";
@@ -79,8 +79,17 @@ export default function AppHeader() {
       {/* Left */}
       <div className="flex items-center gap-4 rounded-xl border bg-white p-2 shadow-sm">
         <Avatar className="h-12 w-12 border">
+          <AvatarImage
+            src={user?.image || ""}
+            alt={user?.username || user?.fullname || "User"}
+          />
+
           <AvatarFallback className="bg-black text-lg font-bold text-white">
-            {user?.username[0].toUpperCase()}
+            {(
+              user?.username?.[0] ||
+              user?.fullname?.[0] ||
+              "?"
+            ).toUpperCase()}
           </AvatarFallback>
         </Avatar>
 
@@ -127,7 +136,7 @@ export default function AppHeader() {
               markAllAsRead();
             }
           }}
-        
+
         >
           <PopoverTrigger asChild>
             <button className="relative">

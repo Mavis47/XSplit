@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, UserPlus, Clock, Users } from "lucide-react";
 import { toast } from "react-toastify";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 
 type Friend = {
   id: number;
@@ -30,24 +32,36 @@ export default function Friends() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [pendingRequests, setPendingRequests] = useState<FriendRequest[]>([]);
 
-  // ---------------- FETCH FRIENDS ----------------
-  const getFriends = async () => {
-  try {
-    const res = await fetch("/api/friends");
-
-    if (!res.ok) {
-      throw new Error();
-    }
-
-    const data = await res.json();
-    setFriends(data);
-  } catch (error) {
-    console.error(error);
-    toast.error("Failed to load friends");
-  }
-};
+  const { status } = useSession();
+  const router = useRouter();
 
   useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
+
+  // ---------------- FETCH FRIENDS ----------------
+  const getFriends = async () => {
+    try {
+      const res = await fetch("/api/friends");
+
+      if (!res.ok) {
+        throw new Error();
+      }
+
+      if (res.status === 401) return;
+
+      const data = await res.json();
+      setFriends(data);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to load friends");
+    }
+  };
+
+  useEffect(() => {
+    if (status !== "authenticated") return;
     getFriends();
     getPendingRequests();
   }, []);
@@ -109,6 +123,8 @@ export default function Friends() {
       if (!res.ok) {
         throw new Error();
       }
+
+      if (res.status === 401) return;
 
       const data = await res.json();
 
@@ -183,25 +199,33 @@ export default function Friends() {
   };
 
   const removeFriend = async (friendId: number) => {
-  try {
-    const res = await fetch(`/api/friends/request?friendId=${friendId}`, {
-      method: "DELETE",
-    });
+    try {
+      const res = await fetch(`/api/friends/request?friendId=${friendId}`, {
+        method: "DELETE",
+      });
 
-    const data = await res.json();
+      const data = await res.json();
 
-    if (!res.ok) {
-      toast.error(data.message);
-      return;
+      if (!res.ok) {
+        toast.error(data.message);
+        return;
+      }
+
+      toast.success(data.message);
+
+      getFriends();
+    } catch (err) {
+      toast.error("Something went wrong");
     }
+  };
 
-    toast.success(data.message);
-
-    getFriends();
-  } catch (err) {
-    toast.error("Something went wrong");
+  if (status === "loading") {
+    return <div>Loading...</div>;
   }
-};
+
+  if (status === "unauthenticated") {
+    return null;
+  }
 
   return (
     <div className="space-y-6">

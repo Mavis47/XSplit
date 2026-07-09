@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+
 
 type Member = {
   id: number;
@@ -39,6 +42,15 @@ export default function ExpensesPage() {
 
   const [search, setSearch] = useState("");
 
+  const { status } = useSession();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.replace("/login");
+    }
+  }, [status, router]);
+
   // ---------------- FETCH ----------------
   const getExpenses = async () => {
     try {
@@ -52,6 +64,10 @@ export default function ExpensesPage() {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch expenses");
 
+      if (res.status === 401) {
+        return;
+      }
+
       const data = await res.json();
 
       setExpenses(data);
@@ -63,10 +79,11 @@ export default function ExpensesPage() {
   };
 
   useEffect(() => {
+    if (status !== "authenticated") return;
+
     getExpenses();
     getGroups();
-  }, [type]);
-
+  }, [type, status]);
   // ---------------- SPLIT HELPERS ----------------
   const calculateEqualSplit = (amt: number) => {
     const perPerson = amt / members.length;
@@ -224,14 +241,11 @@ export default function ExpensesPage() {
   const getMembers = async (groupId: number) => {
     try {
       const res = await fetch(`/api/groups/${groupId}`);
-      console.log("Members in group", res)
 
       if (!res.ok) throw new Error();
 
       const data = await res.json();
-
-      console.log("Members", data);
-
+      
       setMembers(
         data.map((user: any) => ({
           id: user.id,
@@ -321,6 +335,10 @@ export default function ExpensesPage() {
 
     return () => clearTimeout(timeout);
   }, [search]);
+
+  if (status === "loading") {
+    return <div>Loading...</div>;
+  }
   // ---------------- UI ----------------
   return (
     <div className="space-y-6">
