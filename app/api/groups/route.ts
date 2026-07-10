@@ -1,6 +1,7 @@
 import { prisma } from "@/app/lib/prisma";
 import { auth } from "@/auth";
 import { NextRequest, NextResponse } from "next/server";
+import { redis } from "@/lib/redis/redis";
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -49,6 +50,17 @@ export async function GET() {
 
     const userId = Number(session.user.id);
 
+     const cacheKey = `groups:${userId}`;
+
+    const cachedGroups = await redis.get(cacheKey);
+
+    if (cachedGroups) {
+      console.log("✅ Returning groups from Redis");
+      return NextResponse.json(JSON.parse(cachedGroups));
+    }
+
+    console.log("❌ Cache Miss - Fetching groups from Database");
+
     const groups = await prisma.group.findMany({
       where: {
         OR: [
@@ -93,6 +105,15 @@ export async function GET() {
         createdAt: "desc",
       },
     });
+
+    await redis.set(
+      cacheKey,
+      JSON.stringify(groups),
+      "EX",
+      300 // 5 minutes
+    );
+
+    console.log("💾 Stored groups in Redis");
 
     return NextResponse.json(groups);
   } catch (error) {

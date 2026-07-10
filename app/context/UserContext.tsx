@@ -1,12 +1,6 @@
 'use client';
 
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  ReactNode,
-} from "react";
+import {createContext,useContext,useEffect,useState,ReactNode} from "react";
 
 type User = {
   id: number;
@@ -24,13 +18,10 @@ type UserContextType = {
 
 const UserContext = createContext<UserContextType | null>(null);
 
-export function UserProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function UserProvider({children}: {children: ReactNode}) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  
 
   const refreshUser = async () => {
     try {

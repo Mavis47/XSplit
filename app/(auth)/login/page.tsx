@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { signIn } from "next-auth/react";
 import { toast } from 'react-toastify';
+import { useUser } from '@/app/context/UserContext';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const { refreshUser } = useUser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +29,6 @@ export default function LoginPage() {
       callbackUrl: "/",
     });
 
-    console.log("SignIn Result:", result);
-
     setLoading(false);
 
     if (result?.error) {
@@ -37,7 +37,7 @@ export default function LoginPage() {
     }
 
     toast.success("Login successful!");
-
+    await refreshUser();
     router.push("/");
     router.refresh();
   };
@@ -172,6 +172,7 @@ export default function LoginPage() {
               onClick={() => signIn("google", {
                 callbackUrl: "/",
               })}
+              
               className="w-full flex items-center justify-center gap-2.5 border border-slate-200 py-3 rounded-xl font-medium text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition active:transform active:scale-[0.99]"
             >
               <img src="https://www.svgrepo.com/show/355037/google.svg" className="w-5 h-5" alt="Google" />

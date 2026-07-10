@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { auth } from "@/auth";
+import { redis } from "@/lib/redis/redis";
 
 export async function GET() {
   try {
@@ -14,6 +15,16 @@ export async function GET() {
     }
 
     const userId = Number(session.user.id);
+
+    const cacheKey = `friends:${userId}`;
+
+    const cachedFriends = await redis.get(cacheKey);
+
+    if (cachedFriends) {
+      console.log("✅ Returning friends from Redis");
+
+      return NextResponse.json(JSON.parse(cachedFriends));
+    }
 
     const friendships = await prisma.friendship.findMany({
       where: {
@@ -51,6 +62,13 @@ export async function GET() {
       friendship.user1Id === userId
         ? friendship.user2
         : friendship.user1
+    );
+
+    await redis.set(
+      cacheKey,
+      JSON.stringify(friends),
+      "EX",
+      300 // 5 minutes
     );
 
     return NextResponse.json(friends);

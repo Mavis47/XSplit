@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { auth } from "@/auth";
 import { publishNotification } from "@/lib/kafka/notification";
+import { redis } from "@/lib/redis/redis";
 
 export async function PUT(req: NextRequest) {
   try {
@@ -69,6 +70,9 @@ export async function PUT(req: NextRequest) {
           status: "ACCEPTED",
         },
       });
+
+      await redis.del(`friends:${request.senderId}`);
+      await redis.del(`friends:${request.receiverId}`);
 
       await tx.friendship.create({
         data: {
