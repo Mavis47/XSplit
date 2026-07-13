@@ -7,7 +7,7 @@ export default function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-gray-100">
-      <AppHeader initial="M" />
+      <AppHeader />
 
       <main className="p-6 w-full">
         {children}

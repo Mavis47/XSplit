@@ -71,8 +71,10 @@ export async function PUT(req: NextRequest) {
         },
       });
 
-      await redis.del(`friends:${request.senderId}`);
-      await redis.del(`friends:${request.receiverId}`);
+      if(process.env.USE_REDIS == "true"){
+          await redis.del(`friends:${request.senderId}`);
+          await redis.del(`friends:${request.receiverId}`);
+      }
 
       await tx.friendship.create({
         data: {

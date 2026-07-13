@@ -18,12 +18,12 @@ export async function GET() {
 
     const cacheKey = `friends:${userId}`;
 
-    const cachedFriends = await redis.get(cacheKey);
+    if (process.env.USE_REDIS === "true") {
+      const cached = await redis.get(cacheKey);
 
-    if (cachedFriends) {
-      console.log("✅ Returning friends from Redis");
-
-      return NextResponse.json(JSON.parse(cachedFriends));
+      if (cached) {
+        return NextResponse.json(JSON.parse(cached));
+      }
     }
 
     const friendships = await prisma.friendship.findMany({
@@ -64,13 +64,15 @@ export async function GET() {
         : friendship.user1
     );
 
-    await redis.set(
-      cacheKey,
-      JSON.stringify(friends),
-      "EX",
-      300 // 5 minutes
-    );
-
+    if(process.env.USE_REDIS == "true"){
+        await redis.set(
+          cacheKey,
+          JSON.stringify(friends),
+          "EX",
+          300 // 5 minutes
+        );
+    }
+    
     return NextResponse.json(friends);
   } catch (error) {
     console.error(error);

@@ -50,16 +50,18 @@ export async function GET() {
 
     const userId = Number(session.user.id);
 
-     const cacheKey = `groups:${userId}`;
+    const cacheKey = `groups:${userId}`;
 
-    const cachedGroups = await redis.get(cacheKey);
+    if (process.env.USE_REDIS === "true"){
+      const cachedGroups = await redis.get(cacheKey);
 
-    if (cachedGroups) {
-      console.log("✅ Returning groups from Redis");
-      return NextResponse.json(JSON.parse(cachedGroups));
+      if (cachedGroups) {
+        console.log("✅ Returning groups from Redis");
+        return NextResponse.json(JSON.parse(cachedGroups));
+      }
+
+      console.log("❌ Cache Miss - Fetching groups from Database");
     }
-
-    console.log("❌ Cache Miss - Fetching groups from Database");
 
     const groups = await prisma.group.findMany({
       where: {
@@ -106,14 +108,17 @@ export async function GET() {
       },
     });
 
-    await redis.set(
-      cacheKey,
-      JSON.stringify(groups),
-      "EX",
-      300 // 5 minutes
-    );
+    if (process.env.USE_REDIS === "true"){
+        await redis.set(
+          cacheKey,
+          JSON.stringify(groups),
+          "EX",
+          300 // 5 minutes
+        );
 
-    console.log("💾 Stored groups in Redis");
+      console.log("💾 Stored groups in Redis");
+    }
+    
 
     return NextResponse.json(groups);
   } catch (error) {
