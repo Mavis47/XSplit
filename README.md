@@ -36,7 +36,7 @@ Built with **Next.js 16 • TypeScript • PostgreSQL • Prisma • Kafka • R
 
 | Login | Dashboard |
 |-------|-----------|
-| ![](docs/images/login.png) | ![](docs/images/dashboard.png) |
+| ![](docs/images/login.png) | ![](docs/images/home.png) |
 
 ---
 
