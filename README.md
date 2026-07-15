@@ -219,7 +219,7 @@ Consumer --> Database
 
 ## Dashboard
 
-![](docs/images/dashboard.png)
+![](docs/images/home.png)
 
 ---
 
