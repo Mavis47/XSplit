@@ -1,41 +1,297 @@
-<<<<<<< HEAD
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+XSplit
 
-## Getting Started
+A production-ready expense-sharing platform inspired by Splitwise, built with Next.js 16, Prisma, PostgreSQL, Kafka, Redis, Docker, and NextAuth.
 
-First, run the development server:
+Live Demo
 
-```bash
+https://x-split-three.vercel.app
+
+Features
+Authentication using NextAuth/Auth.js
+Friend Requests
+Expense Sharing
+Group Expenses
+Equal & Unequal Split
+Notification System
+Kafka Event Streaming
+Redis Caching
+Dockerized Development
+Prisma ORM
+PostgreSQL
+Responsive UI
+REST APIs
+Background Workers
+Tech Stack
+Category	Technologies
+Frontend	Next.js 16, React, TypeScript, TailwindCSS
+Backend	Next.js Route Handlers
+Database	PostgreSQL
+ORM	Prisma
+Authentication	NextAuth
+Cache	Redis
+Message Broker	Apache Kafka
+Containerization	Docker
+Deployment	Vercel
+System Architecture
+                  +----------------+
+                  |     Client     |
+                  |  Next.js App   |
+                  +-------+--------+
+                          |
+                          |
+                    REST API Calls
+                          |
+                          v
+          +-------------------------------+
+          |       Next.js Backend         |
+          +---------------+---------------+
+                          |
+      +-------------------+--------------------+
+      |                   |                    |
+      |                   |                    |
+      v                   v                    v
+ PostgreSQL            Redis Cache         Kafka Producer
+      |                                        |
+      |                                        |
+      +----------------------------+-----------+
+                                   |
+                                   v
+                           Kafka Consumer
+                                   |
+                                   v
+                           Notifications Table
+Project Workflow
+Login
+User
+   │
+   ▼
+NextAuth
+   │
+   ▼
+JWT Session
+   │
+   ▼
+Protected Routes
+
+Friend Request Flow
+
+User A
+   │
+   ▼
+Send Friend Request
+   │
+   ▼
+Database
+   │
+   ▼
+Publish Kafka Event
+   │
+   ▼
+Kafka Topic
+   │
+   ▼
+Notification Worker
+   │
+   ▼
+Notification Table
+   │
+   ▼
+User B sees Notification
+
+Accept Friend Request Workflow
+
+Accept Request
+      │
+      ▼
+Update FriendRequest
+      │
+      ▼
+Create Friendship
+      │
+      ▼
+Publish Kafka Event
+      │
+      ▼
+Consumer
+      │
+      ▼
+Notification Created
+
+Expense Creation Workflow
+Create Expense
+      │
+      ▼
+Validate Members
+      │
+      ▼
+Save Expense
+      │
+      ▼
+Publish Kafka Event
+      │
+      ▼
+Notification Worker
+      │
+      ▼
+Create Notifications
+
+Redis Workflow
+
+Request
+   │
+   ▼
+Check Redis
+   │
+   ├──────────────► Cache Hit
+   │                    │
+   │                    ▼
+   │               Return Data
+   │
+   ▼
+Cache Miss
+   │
+   ▼
+Database
+   │
+   ▼
+Save into Redis
+   │
+   ▼
+Return Data
+
+Kafka Workflow
+API Request
+      │
+      ▼
+Kafka Producer
+      │
+      ▼
+Kafka Topic
+      │
+      ▼
+Kafka Consumer
+      │
+      ▼
+Notification Service
+      │
+      ▼
+Database
+
+Folder Structure
+app
+│
+├── api
+│     ├── auth
+│     ├── expenses
+│     ├── friends
+│     ├── groups
+│     └── notifications
+│
+├── components
+│
+├── context
+│
+├── lib
+│      ├── prisma
+│      ├── kafka
+│      └── redis
+│
+├── generated
+│
+└── workers
+      └── notification-worker.ts
+
+API Documentation
+Authentication
+Register
+POST /api/auth/register
+
+Body
+
+{
+  "name":"John",
+  "username":"john",
+  "email":"john@gmail.com",
+  "password":"password"
+}
+Login
+POST /api/auth/login
+Friends
+Search Users
+GET /api/friends/search?q=john
+Send Friend Request
+POST /api/friends/request
+{
+    "receiverId":12
+}
+Accept Friend Request
+PUT /api/friends/request/accept
+{
+    "requestId":5
+}
+Reject Friend Request
+PUT /api/friends/request/reject
+Get Friends
+GET /api/friends
+Groups
+Create Group
+POST /api/groups
+Get Groups
+GET /api/groups
+Add Member
+POST /api/groups/addmember
+Expenses
+Create Expense
+POST /api/expenses
+Get Personal Expenses
+GET /api/expenses/personal
+Get Group Expenses
+GET /api/expenses/group
+Search Expenses
+GET /api/expenses/search
+Notifications
+Get Notifications
+GET /api/notifications
+Mark Read
+PATCH /api/notifications/read
+Docker
+
+Start all services
+
+docker compose up -d
+
+Stop
+
+docker compose down
+Environment Variables
+DATABASE_URL=
+
+AUTH_SECRET=
+
+AUTH_URL=
+
+GOOGLE_CLIENT_ID=
+
+GOOGLE_CLIENT_SECRET=
+
+KAFKA_BROKER=
+
+REDIS_HOST=
+
+REDIS_PORT=
+
+USE_KAFKA=true
+
+USE_REDIS=true
+Local Development
+git clone https://github.com/Mavis47/XSplit
+
+cd XSplit
+
+npm install
+
+docker compose up -d
+
+npx prisma migrate dev
+
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-=======
-# XSplit
-Expense Tracking System
->>>>>>> 24363d6545ce545d552db30e045dfcf167820447
